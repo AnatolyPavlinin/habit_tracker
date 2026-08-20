@@ -31,6 +31,8 @@ DEBUG = os.getenv("DJANGO_DEBUG")
 
 ALLOWED_HOSTS = [h.strip() for h in os.getenv("ALLOWED_HOSTS", "").split(",") if h.strip()]
 
+AUTH_USER_MODEL = 'api.CustomUser'
+
 
 # Application definition
 
@@ -44,6 +46,7 @@ INSTALLED_APPS = [
 
     "rest_framework",
     "api.apps.ApiConfig",
+    'rest_framework.authtoken',
 ]
 
 MIDDLEWARE = [
@@ -151,3 +154,5 @@ REST_FRAMEWORK = {
 
 CELERY_BROKER_URL=os.getenv('CELERY_BROKER_URL')
 CELERY_RESULT_BACKEND=os.getenv('CELERY_RESULT_BACKEND')
+
+

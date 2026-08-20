@@ -1,7 +1,8 @@
 from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.db import models
-from django.db.models import Q, F, ExpressionWrapper, BooleanField
+from django.db.models import Q
+from django.contrib.auth.models import AbstractUser
 
 
 class Habit(models.Model):
@@ -101,3 +102,14 @@ class Habit(models.Model):
     def save(self, *args, **kwargs):
         self.full_clean()  # Автоматический вызов clean при сохранении
         super().save(*args, **kwargs)
+
+
+class CustomUser(AbstractUser):
+    username = None  # Удаляем стандартное поле username
+    email = models.EmailField(unique=True, verbose_name='Email')
+
+    USERNAME_FIELD = 'email'
+    REQUIRED_FIELDS = []  # Поля, которые будут спрашиваться при создании суперпользователя через createsuperuser
+
+    def __str__(self):
+        return self.email
