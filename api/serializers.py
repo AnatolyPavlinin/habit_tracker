@@ -6,8 +6,8 @@ from rest_framework.authtoken.models import Token
 class UserSerializer(serializers.ModelSerializer):
     class Meta:
         model = CustomUser
-        fields = ('id', 'email', 'first_name', 'last_name')
-        read_only_fields = ('id',)
+        fields = ("id", "email", "first_name", "last_name")
+        read_only_fields = ("id",)
 
 
 class RegisterSerializer(serializers.ModelSerializer):
@@ -15,14 +15,14 @@ class RegisterSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = CustomUser
-        fields = ('email', 'password', 'first_name', 'last_name')
+        fields = ("email", "password", "first_name", "last_name")
 
     def create(self, validated_data):
         user = CustomUser.objects.create_user(
-            email=validated_data['email'],
-            first_name=validated_data.get('first_name', ''),
-            last_name=validated_data.get('last_name', ''),
-            password=validated_data['password']
+            email=validated_data["email"],
+            first_name=validated_data.get("first_name", ""),
+            last_name=validated_data.get("last_name", ""),
+            password=validated_data["password"],
         )
         Token.objects.create(user=user)  # Создаем токен сразу при регистрации
         return user
@@ -33,7 +33,7 @@ class UserPublicSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = CustomUser
-        fields = ('email', 'first_name', 'last_name')
+        fields = ("email", "first_name", "last_name")
 
 
 class HabitCreateUpdateSerializer(serializers.ModelSerializer):
@@ -43,15 +43,22 @@ class HabitCreateUpdateSerializer(serializers.ModelSerializer):
     class Meta:
         model = Habit
         fields = (
-            'place', 'time', 'action', 'is_pleasant', 'related_habit',
-            'periodicity', 'reward', 'execution_time', 'is_public'
+            "place",
+            "time",
+            "action",
+            "is_pleasant",
+            "related_habit",
+            "periodicity",
+            "reward",
+            "execution_time",
+            "is_public",
         )
 
     def validate(self, attrs):
         # Дублируем серверную валидацию на уровне API для понятных ошибок фронтенду
-        is_pleasant = attrs.get('is_pleasant', False)
-        reward = attrs.get('reward')
-        related_habit = attrs.get('related_habit')
+        is_pleasant = attrs.get("is_pleasant", False)
+        reward = attrs.get("reward")
+        related_habit = attrs.get("related_habit")
 
         if is_pleasant and (reward or related_habit):
             raise serializers.ValidationError(
@@ -63,11 +70,11 @@ class HabitCreateUpdateSerializer(serializers.ModelSerializer):
                 "Нельзя одновременно указывать вознаграждение и связанную приятную привычку."
             )
 
-        if attrs.get('execution_time') > 120:
-            raise serializers.ValidationError({'execution_time': 'Время выполнения не может превышать 120 секунд.'})
+        if attrs.get("execution_time") > 120:
+            raise serializers.ValidationError({"execution_time": "Время выполнения не может превышать 120 секунд."})
 
-        if attrs.get('periodicity') > 7:
-            raise serializers.ValidationError({'periodicity': 'Периодичность не может быть больше 7 дней.'})
+        if attrs.get("periodicity") > 7:
+            raise serializers.ValidationError({"periodicity": "Периодичность не может быть больше 7 дней."})
 
         return attrs
 
@@ -85,19 +92,19 @@ class HabitListRetrieveSerializer(serializers.ModelSerializer):
     - execution_time: Максимальное время выполнения (в секундах; <= 120)
     - is_public: Публичность привычки
     """
+
     owner = UserPublicSerializer(read_only=True)
     related_habit_data = serializers.SerializerMethodField()
 
     class Meta:
         model = Habit
-        fields = '__all__'  # Выведем все поля модели + связанные данные
+        fields = "__all__"  # Выведем все поля модели + связанные данные
 
     def get_related_habit_data(self, obj):
         if obj.related_habit:
             return {
-                'id': obj.related_habit.id,
-                'action': obj.related_habit.action,
-                'is_pleasant': obj.related_habit.is_pleasant
+                "id": obj.related_habit.id,
+                "action": obj.related_habit.action,
+                "is_pleasant": obj.related_habit.is_pleasant,
             }
         return None
-    

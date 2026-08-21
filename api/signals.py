@@ -3,7 +3,6 @@ from django.dispatch import receiver
 from django.utils import timezone
 from django_celery_beat.models import PeriodicTask, IntervalSchedule
 from api.models import Habit
-from api.tasks import send_telegram_notification
 
 
 @receiver(post_save, sender=Habit)
@@ -22,17 +21,14 @@ def create_or_update_habit_schedule(sender, instance, created, **kwargs):
         return
 
     # Определяем интервал из поля periodicity (в днях)
-    schedule, _ = IntervalSchedule.objects.get_or_create(
-        every=instance.periodicity,
-        period=IntervalSchedule.DAYS
-    )
+    schedule, _ = IntervalSchedule.objects.get_or_create(every=instance.periodicity, period=IntervalSchedule.DAYS)
 
     # Создаем новую периодическую задачу
     PeriodicTask.objects.create(
         interval=schedule,
         name=task_name,
-        task='api.tasks.send_telegram_notification',  # Путь к нашей задаче
+        task="api.tasks.send_telegram_notification",  # Путь к нашей задаче
         args=[str(instance.id)],  # Передаем ID привычки в аргументы функции
         start_time=timezone.now(),  # Начинаем прямо сейчас
-        enabled=True
+        enabled=True,
     )

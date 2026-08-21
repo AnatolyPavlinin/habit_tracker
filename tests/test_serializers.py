@@ -16,7 +16,7 @@ def test_create_illegal_habit():
         "time": "19:00",
         "is_pleasant": False,
         "related_habit": 1,  # ID приятной привычки
-        "reward": "Конфета"
+        "reward": "Конфета",
     }
 
     serializer = HabitCreateUpdateSerializer(data=data)
@@ -26,7 +26,7 @@ def test_create_illegal_habit():
         serializer.is_valid(raise_exception=True)
 
         error_keys = list(excinfo.value.detail.keys())
-        assert any(key in ['non_field_errors', 'reward', 'related_habit'] for key in error_keys)
+        assert any(key in ["non_field_errors", "reward", "related_habit"] for key in error_keys)
 
 
 @pytest.mark.django_db
@@ -36,11 +36,7 @@ def test_serializer_validation(api_client, habit):
     """
     # Создадим приятную привычку, чтобы она могла быть связанной
     pleasant_habit = Habit.objects.create(
-        owner=habit.owner,
-        action='Приятная привычка',
-        place='Кафе',
-        time='17:00',
-        is_pleasant=True
+        owner=habit.owner, action="Приятная привычка", place="Кафе", time="17:00", is_pleasant=True
     )
 
     # Данные для новой полезной привычки
@@ -49,8 +45,8 @@ def test_serializer_validation(api_client, habit):
         "place": "Парк",
         "time": "19:00",
         "is_pleasant": False,
-        "related_habit": pleasant_habit.id,   # Связанная приятная
-        "reward": "Конфета"                 # И текстовое вознаграждение
+        "related_habit": pleasant_habit.id,  # Связанная приятная
+        "reward": "Конфета",  # И текстовое вознаграждение
     }
 
     serializer = HabitCreateUpdateSerializer(data=data)
@@ -60,4 +56,4 @@ def test_serializer_validation(api_client, habit):
 
     # Ошибка должна быть либо в поле non_field_errors, либо в reward/related_habit
     error_keys = list(excinfo.value.detail.keys())
-    assert any(key in ['non_field_errors', 'reward', 'related_habit'] for key in error_keys)
+    assert any(key in ["non_field_errors", "reward", "related_habit"] for key in error_keys)
