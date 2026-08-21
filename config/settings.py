@@ -47,6 +47,7 @@ INSTALLED_APPS = [
     "rest_framework",
     "api.apps.ApiConfig",
     'rest_framework.authtoken',
+    'django_celery_beat',
 ]
 
 MIDDLEWARE = [
@@ -152,7 +153,8 @@ REST_FRAMEWORK = {
     ),
 }
 
-CELERY_BROKER_URL=os.getenv('CELERY_BROKER_URL')
-CELERY_RESULT_BACKEND=os.getenv('CELERY_RESULT_BACKEND')
-
-
+CELERY_BROKER_URL = os.getenv('CELERY_BROKER_URL')
+CELERY_RESULT_BACKEND = os.getenv('CELERY_RESULT_BACKEND')
+CELERY_TIMEZONE = 'Europe/Moscow'
+CELERY_ENABLE_UTC = True
+CELERY_BEAT_SCHEDULER = 'django_celery_beat.schedulers.DatabaseScheduler'
