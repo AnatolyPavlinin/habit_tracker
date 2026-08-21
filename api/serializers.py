@@ -73,7 +73,18 @@ class HabitCreateUpdateSerializer(serializers.ModelSerializer):
 
 
 class HabitListRetrieveSerializer(serializers.ModelSerializer):
-    """Сериализатор для вывода списка и деталей. Расширяем данные."""
+    """Сериализатор для вывода списка и деталей.
+    Поля:
+    - place: Место выполнения
+    - time: Время выполнения (HH:MM)
+    - action: Действие (что именно нужно сделать)
+    - is_pleasant: Является ли эта привычка "приятной" (вознаграждение)
+    - related_habit_data: Связанная приятная привычка (если выбрано)
+    - periodicity: Периодичность напоминания в днях
+    - reward: Текст вознаграждения
+    - execution_time: Максимальное время выполнения (в секундах; <= 120)
+    - is_public: Публичность привычки
+    """
     owner = UserPublicSerializer(read_only=True)
     related_habit_data = serializers.SerializerMethodField()
 
