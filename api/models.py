@@ -85,24 +85,36 @@ class Habit(models.Model):
         return f'{self.action} в {self.time} в {self.place}'
 
     def clean(self):
-        super().clean()
+        """
+        Серверная бизнес-логика (валидатор).
 
-        # Серверный валидатор: у приятной привычки нет вознаграждения и связанных привычек
-        if self.is_pleasant:
-            if self.reward:
-                raise ValidationError({'reward': 'У приятной привычки не может быть вознаграждения.'})
-            if self.related_habit:
-                raise ValidationError({'related_habit': 'У приятной привычки не может быть связанной привычки.'})
+        1) У приятной привычки НЕ может быть ни награды, ни связанной привычки.
+           Это правило жёсткое: если привычка помечена как приятная,
+           оба этих поля должны быть пустыми.
 
-        # У полезной привычки должна быть либо связь, либо вознаграждение (или ничего, если это просто действие)
-        if not self.is_pleasant:
-            if not self.related_habit and not self.reward:
-                # По ТЗ допускается отсутствие обоих полей, так как наградой может быть что-то внешнее
-                pass
+        2) У полезной привычки ДОЛЖНА БЫТЬ ЛИБО награда, ЛИБО связь с другой привычкой.
+           Пользователь не обязан выбирать одновременно и то, и другое!
+        """
+
+        # Проверка для ПРИЯТНОЙ привычки
+        if self.is_pleasant and (self.reward or self.related_habit):
+            raise ValidationError({
+                'reward': 'У приятной привычки не должно быть вознаграждения.',
+                'related_habit': 'У приятной привычки не может быть связанной.'
+            })
+
+        # Проверка для ПОЛЕЗНОЙ привычки
+        # Если это полезная привычка И у неё нет НИ награды, НИ связи — ошибка.
+        # Мы допускаем два сценария:
+        #   - Есть reward, но нет related_habit
+        #   - Нет reward, но есть related_habit
+        if not self.is_pleasant and not bool(self.related_habit) and not bool(self.reward):
+            raise ValidationError({'non_field_errors': [
+                'Полезной привычке нужно указать либо награду, либо связанную привычку!'
+            ]})
 
     def save(self, *args, **kwargs):
-        self.full_clean()  # Автоматический вызов clean при сохранении
-        super().save(*args, **kwargs)
+        super().save(**kwargs)
 
 
 class CustomUserManager(BaseUserManager):
@@ -146,7 +158,7 @@ class CustomUserManager(BaseUserManager):
 class CustomUser(AbstractUser):
     username = None  # Удаляем стандартное поле username
     email = models.EmailField(unique=True, verbose_name='Email')
-
+    telegram_chat_id = models.BigIntegerField(null=True, blank=True, verbose_name='ID чата Telegram')
     objects = CustomUserManager()
 
     USERNAME_FIELD = 'email'
