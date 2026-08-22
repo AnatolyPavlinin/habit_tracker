@@ -1,34 +1,48 @@
-from django.db.models.signals import post_save
+import json
+
+from config import settings
+from django.db.models.signals import post_save, post_delete
 from django.dispatch import receiver
-from django.utils import timezone
-from django_celery_beat.models import PeriodicTask, IntervalSchedule
+from django_celery_beat.models import PeriodicTask, CrontabSchedule
 from api.models import Habit
 
 
 @receiver(post_save, sender=Habit)
 def create_or_update_habit_schedule(sender, instance, created, **kwargs):
-    """
-    При создании или обновлении привычки пересоздаем её напоминание в Celery Beat.
-    """
-    # Генерируем уникальное имя задачи, привязанное к ID привычки
-    task_name = f"habit_reminder_{instance.id}"
+    """Создаёт задачу напоминания."""
 
-    # Удаляем старую задачу с таким же именем, если она была (при редактировании привычки)
+    task_name = f"habit_reminder_{instance.pk}"
+
+    # Удаляем старую задачу, чтобы избежать дублирования
     PeriodicTask.objects.filter(name=task_name).delete()
 
-    # Если привычка удалена или помечена как неактивная (если добавите такое поле), выходим
-    if not instance.is_public and instance.owner != instance.owner:  # заглушка для логики удаления
+    # Если привычка удалена или скрыта, ничего не создаем
+    if not instance.is_public and instance.owner != instance.owner:
         return
 
-    # Определяем интервал из поля periodicity (в днях)
-    schedule, _ = IntervalSchedule.objects.get_or_create(every=instance.periodicity, period=IntervalSchedule.DAYS)
+    # Привязываем уведомление строго ко времени привычки через crontab
+    schedule, _ = CrontabSchedule.objects.get_or_create(
+        minute=str(instance.time.minute),
+        hour=str(instance.time.hour),
+        day_of_week="*",  # Каждый день недели
+        timezone=settings.TIME_ZONE,
+    )
 
-    # Создаем новую периодическую задачу
+    args_json = json.dumps([str(instance.id)])
+
+    # Создаём новую периодическую задачу
     PeriodicTask.objects.create(
-        interval=schedule,
         name=task_name,
-        task="api.tasks.send_telegram_notification",  # Путь к нашей задаче
-        args=[str(instance.id)],  # Передаем ID привычки в аргументы функции
-        start_time=timezone.now(),  # Начинаем прямо сейчас
+        crontab=schedule,
+        interval=None,
+        task='api.tasks.send_telegram_notification',
+        args=args_json,
         enabled=True,
     )
+
+
+@receiver(post_delete, sender=Habit)
+def delete_habit_task(sender, instance, **kwargs):
+    """Удаляет задачу при удалении привычки."""
+    task_name = f"habit_reminder_{instance.pk}"
+    PeriodicTask.objects.filter(name=task_name).delete()

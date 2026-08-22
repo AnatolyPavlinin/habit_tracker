@@ -37,64 +37,76 @@ class UserPublicSerializer(serializers.ModelSerializer):
 
 
 class HabitCreateUpdateSerializer(serializers.ModelSerializer):
-    """Сериализатор для создания и обновления.
-    related_habit принимает ID приятной привычки."""
+    """
+    Сериализатор с полной бизнес-логикой.
+    Используется при POST/PUT/PATCH.
+    """
 
     class Meta:
         model = Habit
-        fields = (
-            "place",
-            "time",
-            "action",
-            "is_pleasant",
-            "related_habit",
-            "periodicity",
-            "reward",
-            "execution_time",
-            "is_public",
-        )
+        fields = "__all__"
 
     def validate(self, attrs):
-        # Дублируем серверную валидацию на уровне API для понятных ошибок фронтенду
-        is_pleasant = attrs.get("is_pleasant", False)
-        reward = attrs.get("reward")
-        related_habit = attrs.get("related_habit")
+        # Получаем текущий экземпляр (если это обновление)
+        instance = self.instance
 
-        if is_pleasant and (reward or related_habit):
+        # Берём данные либо из запроса, либо из текущего объекта,
+        # либо используем дефолтное значение из модели
+        is_pleasant = attrs.get(
+            "is_pleasant",
+            getattr(instance, "is_pleasant", False),
+        )
+        reward = attrs.get("reward", getattr(instance, "reward", ""))
+        related_habit_id = attrs.get(
+            "related_habit",
+            getattr(instance, "related_habit", None),
+        )
+        execution_time = attrs.get(
+            "execution_time",
+            getattr(instance, "execution_time", 120),
+        )
+        periodicity = attrs.get(
+            "periodicity",
+            getattr(instance, "periodicity", 1),
+        )
+
+        # Проверка связанной привычки
+        if related_habit_id:
+            try:
+                # Мы проверяем именно связанную привычку!
+                related_habit = Habit.objects.get(pk=related_habit_id)
+                if not related_habit.is_pleasant:
+                    raise serializers.ValidationError(
+                        {"related_habit": "Связанная привычка должна быть приятной."}
+                    )
+            except Habit.DoesNotExist:
+                raise serializers.ValidationError(
+                    {"related_habit": "Привычки с таким ID не существует."}
+                )
+
+        # Остальные проверки
+        if reward and related_habit_id:
             raise serializers.ValidationError(
-                "У приятной привычки не может быть вознаграждения или связанной привычки."
+                "Нельзя одновременно указывать награду и связанную привычку."
             )
-
-        if not is_pleasant and reward and related_habit:
+        if is_pleasant and (reward or related_habit_id):
             raise serializers.ValidationError(
-                "Нельзя одновременно указывать вознаграждение и связанную приятную привычку."
+                "У приятной привычки не должно быть награды или связи."
             )
-
-        if attrs.get("execution_time") > 120:
-            raise serializers.ValidationError({"execution_time": "Время выполнения не может превышать 120 секунд."})
-
-        if attrs.get("periodicity") > 7:
-            raise serializers.ValidationError({"periodicity": "Периодичность не может быть больше 7 дней."})
+        if execution_time > 120:
+            raise serializers.ValidationError(
+                {"execution_time": "Максимум 120 секунд."}
+            )
+        if not 1 <= periodicity <= 7:
+            raise serializers.ValidationError(
+                {"periodicity": "Допустимо от 1 до 7 дней."}
+            )
 
         return attrs
 
 
 class HabitListRetrieveSerializer(serializers.ModelSerializer):
-    """Сериализатор для вывода списка и деталей.
-    Поля:
-    - place: Место выполнения
-    - time: Время выполнения (HH:MM)
-    - action: Действие (что именно нужно сделать)
-    - is_pleasant: Является ли эта привычка "приятной" (вознаграждение)
-    - related_habit_data: Связанная приятная привычка (если выбрано)
-    - periodicity: Периодичность напоминания в днях
-    - reward: Текст вознаграждения
-    - execution_time: Максимальное время выполнения (в секундах; <= 120)
-    - is_public: Публичность привычки
-    """
-
     owner = UserPublicSerializer(read_only=True)
-    related_habit_data = serializers.SerializerMethodField()
 
     class Meta:
         model = Habit
