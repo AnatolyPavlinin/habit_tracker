@@ -80,7 +80,7 @@ jobs:
           echo "DEBUG: user = ${{ env.SSH_USER }}"
 
       - name: Deploy via SSH
-        uses: appleboy/ssh-action@v1.8.0
+        uses: appleboy/ssh-action@v1.2.0
         with:
           host: ${{ env.SSH_HOST }}
           username: ${{ env.SSH_USER }}
