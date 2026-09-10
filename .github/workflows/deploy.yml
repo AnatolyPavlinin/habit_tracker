@@ -78,15 +78,17 @@ jobs:
         run: |
           echo "DEBUG: host = ${{ env.SSH_HOST }}"
           echo "DEBUG: user = ${{ env.SSH_USER }}"
+          echo "DEBUG: path = \${{ env.DEPLOY_PATH }}"
 
       - name: Deploy via SSH
         uses: appleboy/ssh-action@v1.2.0
         with:
-          host: ${{ env.SSH_HOST }}
-          username: ${{ env.SSH_USER }}
+          host: ${{ vars.SSH_HOST }}
+          username: ${{ vars.SSH_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: 22
           script: |
-            cd ${{ env.DEPLOY_PATH }}
+            cd ${{ vars.DEPLOY_PATH }}
             git fetch --all
             git checkout ${{ github.ref_name }}
             git pull origin ${{ github.ref_name }}
