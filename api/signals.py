@@ -20,10 +20,17 @@ def create_or_update_habit_schedule(sender, instance, created, **kwargs):
     if not instance.is_public and instance.owner != instance.owner:
         return
 
+    if isinstance(instance.time, str):
+        hour, minute = instance.time.split(":")
+        hour = int(hour)
+        minute = int(minute)
+    else:
+        hour = instance.time.hour
+        minute = instance.time.minute
     # Привязываем уведомление строго ко времени привычки через crontab
     schedule, _ = CrontabSchedule.objects.get_or_create(
-        minute=str(instance.time.minute),
-        hour=str(instance.time.hour),
+        minute=minute,
+        hour=hour,
         day_of_week="*",  # Каждый день недели
         timezone=settings.TIME_ZONE,
     )
