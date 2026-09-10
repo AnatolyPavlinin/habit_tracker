@@ -1,0 +1,98 @@
+services:
+  web:
+    build: .
+    # Сначала миграции, потом статика, потом запуск сервера
+    command: sh -c "python manage.py migrate --noinput && python manage.py collectstatic --noinput --clear && gunicorn config.wsgi:application --bind 0.0.0.0:8000"
+    volumes:
+      - .:/app
+    env_file:
+      - .env
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    healthcheck:
+      test: [ "CMD-SHELL", "python -c \"import socket; s=socket.socket(); s.connect(('localhost',8000))\" || exit 1" ]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    networks:
+      - habit_net
+
+  db:
+    image: postgres:15-alpine
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    environment:
+      POSTGRES_DB: ${DB_NAME}
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER} -d ${DB_NAME}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+      start_period: 40s
+    networks:
+      - habit_net
+
+  redis:
+    image: redis:7-alpine
+    networks:
+      - habit_net
+
+  worker:
+    build: .
+    command: celery -A config.celery worker -l info
+    volumes:
+      - .:/app
+    env_file:
+      - .env
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_started
+      web:
+        condition: service_healthy
+    networks:
+      - habit_net
+
+  beat:
+    build: .
+    command: celery -A config.celery beat -l info
+    volumes:
+      - .:/app
+    env_file:
+      - .env
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_started
+      web:
+        condition: service_healthy
+    networks:
+      - habit_net
+
+  nginx:
+    image: nginx:alpine
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx.conf:/etc/nginx/conf.d/default.conf
+      - ./static:/app/static
+    depends_on:
+      web:
+        condition: service_started
+    networks:
+      - habit_net
+
+volumes:
+  postgres_data:
+
+networks:
+  habit_net:
+    driver: bridge
