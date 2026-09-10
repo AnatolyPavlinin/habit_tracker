@@ -10,6 +10,8 @@ jobs:
   # ─── Джоб 1: Тесты и линтинг ───
   test-and-lint:
     runs-on: ubuntu-latest
+    env:
+      CI: "true"
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
