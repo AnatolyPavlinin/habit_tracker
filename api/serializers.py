@@ -76,31 +76,19 @@ class HabitCreateUpdateSerializer(serializers.ModelSerializer):
                 # Мы проверяем именно связанную привычку!
                 related_habit = Habit.objects.get(pk=related_habit_id)
                 if not related_habit.is_pleasant:
-                    raise serializers.ValidationError(
-                        {"related_habit": "Связанная привычка должна быть приятной."}
-                    )
+                    raise serializers.ValidationError({"related_habit": "Связанная привычка должна быть приятной."})
             except Habit.DoesNotExist:
-                raise serializers.ValidationError(
-                    {"related_habit": "Привычки с таким ID не существует."}
-                )
+                raise serializers.ValidationError({"related_habit": "Привычки с таким ID не существует."})
 
         # Остальные проверки
         if reward and related_habit_id:
-            raise serializers.ValidationError(
-                "Нельзя одновременно указывать награду и связанную привычку."
-            )
+            raise serializers.ValidationError("Нельзя одновременно указывать награду и связанную привычку.")
         if is_pleasant and (reward or related_habit_id):
-            raise serializers.ValidationError(
-                "У приятной привычки не должно быть награды или связи."
-            )
+            raise serializers.ValidationError("У приятной привычки не должно быть награды или связи.")
         if execution_time > 120:
-            raise serializers.ValidationError(
-                {"execution_time": "Максимум 120 секунд."}
-            )
+            raise serializers.ValidationError({"execution_time": "Максимум 120 секунд."})
         if not 1 <= periodicity <= 7:
-            raise serializers.ValidationError(
-                {"periodicity": "Допустимо от 1 до 7 дней."}
-            )
+            raise serializers.ValidationError({"periodicity": "Допустимо от 1 до 7 дней."})
 
         return attrs
 

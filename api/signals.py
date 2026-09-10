@@ -35,7 +35,7 @@ def create_or_update_habit_schedule(sender, instance, created, **kwargs):
         name=task_name,
         crontab=schedule,
         interval=None,
-        task='api.tasks.send_telegram_notification',
+        task="api.tasks.send_telegram_notification",
         args=args_json,
         enabled=True,
     )
