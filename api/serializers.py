@@ -45,49 +45,29 @@ class HabitCreateUpdateSerializer(serializers.ModelSerializer):
     class Meta:
         model = Habit
         fields = "__all__"
+        read_only_fields = ("owner",)
 
     def validate(self, attrs):
-        # Получаем текущий экземпляр (если это обновление)
-        instance = self.instance
+        is_pleasant = attrs.get("is_pleasant")
+        reward = attrs.get("reward")
+        related_habit = attrs.get("related_habit")  # В DRF это уже объект Habit (или None)
+        execution_time = attrs.get("execution_time")
+        periodicity = attrs.get("periodicity")
 
-        # Берём данные либо из запроса, либо из текущего объекта,
-        # либо используем дефолтное значение из модели
-        is_pleasant = attrs.get(
-            "is_pleasant",
-            getattr(instance, "is_pleasant", False),
-        )
-        reward = attrs.get("reward", getattr(instance, "reward", ""))
-        related_habit_id = attrs.get(
-            "related_habit",
-            getattr(instance, "related_habit", None),
-        )
-        execution_time = attrs.get(
-            "execution_time",
-            getattr(instance, "execution_time", 120),
-        )
-        periodicity = attrs.get(
-            "periodicity",
-            getattr(instance, "periodicity", 1),
-        )
-
-        # Проверка связанной привычки
-        if related_habit_id:
-            try:
-                # Мы проверяем именно связанную привычку!
-                related_habit = Habit.objects.get(pk=related_habit_id)
-                if not related_habit.is_pleasant:
-                    raise serializers.ValidationError({"related_habit": "Связанная привычка должна быть приятной."})
-            except Habit.DoesNotExist:
-                raise serializers.ValidationError({"related_habit": "Привычки с таким ID не существует."})
-
-        # Остальные проверки
-        if reward and related_habit_id:
+        # Нельзя одновременно награду и связанную привычку
+        if related_habit is not None and reward:
             raise serializers.ValidationError("Нельзя одновременно указывать награду и связанную привычку.")
-        if is_pleasant and (reward or related_habit_id):
+
+        # У приятной привычки не должно быть ни награды, ни связи
+        if is_pleasant and (reward or related_habit is not None):
             raise serializers.ValidationError("У приятной привычки не должно быть награды или связи.")
-        if execution_time > 120:
+
+        # Проверка execution_time
+        if execution_time is not None and execution_time > 120:
             raise serializers.ValidationError({"execution_time": "Максимум 120 секунд."})
-        if not 1 <= periodicity <= 7:
+
+        # Проверка periodicity
+        if periodicity is not None and not (1 <= periodicity <= 7):
             raise serializers.ValidationError({"periodicity": "Допустимо от 1 до 7 дней."})
 
         return attrs
