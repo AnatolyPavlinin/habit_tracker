@@ -76,3 +76,178 @@
 ## Документация
 Для реализации экранов силами фронтенд-разработчиков необходимо настроить вывод документации. 
 При необходимости эндпоинты, на которые документация не будет сгенерирована автоматически, описать вручную.
+
+# Habit Tracker
+
+Сервис для отслеживания и управления привычками. Включает в себя Django REST API, Celery для периодических задач (напоминания через Telegram-бот), PostgreSQL, Redis и Nginx.
+
+## Стек технологий
+
+| Компонент       | Технология              |
+|-----------------|-------------------------|
+| Backend         | Django 6.1 + DRF 3.18   |
+| База данных     | PostgreSQL 15           |
+| Очереди задач   | Celery 5.6 + Redis 7    |
+| Веб-сервер      | Nginx (reverse proxy)   |
+| WSGI            | Gunicorn                |
+| Контейнеризация | Docker + Docker Compose |
+| CI/CD           | GitHub Actions          |
+
+## Структура сервисов
+
+- **web** — Django + Gunicorn, миграции и collectstatic при запуске
+- **db** — PostgreSQL 15
+- **redis** — брокер для Celery
+- **worker** — Celery worker для асинхронных задач
+- **beat** — Celery beat для периодических задач
+- **nginx** — раздача статики и проксирование на web
+
+## Локальный запуск
+
+### Требования
+
+- Docker
+- Docker Compose
+
+### Шаги
+
+1. Клонируйте репозиторий:
+
+    
+    git clone https://github.com/AnatolyPavlinin/habit_tracker.git
+    cd habit_tracker
+
+2. Создайте файл .env в корне проекта:
+    
+    cp .env.example .env
+
+Заполните значения (см. раздел «Переменные окружения» ниже).
+
+3. Запустите проект одной командой:
+
+    
+    docker compose up -d --build
+
+4. Проверьте, что все сервисы поднялись:
+
+    
+    docker compose ps
+
+5. Примените миграции и создайте суперпользователя (если не создались автоматически):
+
+    
+    docker compose exec web python manage.py migrate
+    docker compose exec web python manage.py createsuperuser
+
+Проект будет доступен по адресу: http://localhost:80 (через Nginx) или http://localhost:8000 (напрямую Gunicorn, если Nginx отключён).
+
+### Остановка
+
+    
+    docker compose down
+
+С данными (volume postgres_data сохранится). Чтобы удалить данные полностью:
+
+    
+    docker compose down -v
+
+### Переменные окружения
+Создайте файл .env в корне проекта по примеру .env.example:
+
+# Django
+DJANGO_SECRET_KEY=ваш_секретный_ключ
+DJANGO_DEBUG=False
+ALLOWED_HOSTS=localhost,127.0.0.1,158.160.154.193
+
+# PostgreSQL
+DB_NAME=habit_tracker
+DB_USER=postgres
+DB_PASSWORD=ваш_пароль
+DB_HOST=db
+DB_PORT=5432
+
+# Celery
+CELERY_BROKER_URL=redis://redis:6379/0
+CELERY_RESULT_BACKEND=redis://redis:6379/0
+
+# Telegram (для бота-напоминателя)
+TELEGRAM_BOT_TOKEN=ваш_токен
+!!! DB_HOST=db — это имя сервиса в docker-compose.yml, не меняйте его для локального запуска !!!
+
+## CI/CD
+### Pipeline
+Пайплайн запускается при пуше в ветки main и feature. Состоит из трёх джобов:
+
+test-and-lint — проверка flake8 (максимальная длина строки 119) и запуск pytest
+build — сборка Docker-образов (web и worker) без пуша в registry, проверка что Dockerfile валиден
+deploy — деплой на сервер через SSH (запускается только если test-and-lint и build прошли успешно)
+
+### Настройка GitHub Secrets
+Перед запуском CI/CD добавьте в Settings → Secrets and variables → Actions → Secrets следующие секреты:
+
+Secret	Описание
+SSH_HOST	IP-адрес сервера (например, 158.160.154.193)
+SSH_USER	Имя пользователя на сервере (например, ubuntu)
+SSH_PRIVATE_KEY	Приватный SSH-ключ (содержимое файла id_ed25519 или id_rsa)
+DEPLOY_PATH	Путь к проекту на сервере (например, /home/anatoly_pavlinin/projects/habit_tracker)
+
+### Подготовка сервера
+На сервере должны быть установлены:
+
+Docker и Docker Compose
+Git
+
+    
+    # Установка Docker
+    curl -fsSL https://get.docker.com -o get-docker.sh
+    sh get-docker.sh
+
+    # Установка Docker Compose (если не входит в Docker)
+    apt install docker-compose-plugin
+
+Клонируйте репозиторий на сервер:
+
+   
+    cd /home/anatoly_pavlinin/projects
+    git clone https://github.com/AnatolyPavlinin/habit_tracker.git
+
+Создайте .env на сервере:
+
+    cp .env.example .env
+    nano .env  # заполните значения для продакшена
+
+### Генерация SSH-ключей для деплоя
+
+На локальной машине:
+
+    
+    ssh-keygen -t ed25519 -C "github-actions-deploy"
+
+Приватный ключ (содержимое ~/.ssh/id_ed25519) добавьте в GitHub Secrets как SSH_PRIVATE_KEY
+Публичный ключ (~/.ssh/id_ed25519.pub) добавьте на сервер в ~/.ssh/authorized_keys:
+
+    
+    cat ~/.ssh/id_ed25519.pub | ssh SSH_USER@SSH_HOST "mkdir -p ~/.ssh && cat >> ~/.ssh/authorized_keys"
+
+### Как происходит деплой
+
+При пуше в ветки `main` или `feature` GitHub Actions:
+
+1. Прогоняет тесты и линтинг.
+2. Проверяет сборку Docker-образов.
+3. Подключается к серверу по SSH.
+4. Выполняет на сервере следующие команды (в папке проекта):
+
+   ``````
+   cd /home/anatoly_pavlinin/projects/habit_tracker
+   git fetch --all
+   git checkout "${{ github.ref_name }}"
+   git pull origin "${{ github.ref_name }}"
+
+   docker compose down
+   docker compose up -d --build
+
+   docker compose exec -T web python manage.py migrate
+
+   docker image prune -f
+
