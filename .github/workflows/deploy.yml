@@ -1,0 +1,103 @@
+name: CI/CD
+
+on:
+  push:
+    branches:
+      - main
+      - feature
+
+jobs:
+  # ─── Джоб 1: Тесты и линтинг ───
+  test-and-lint:
+    runs-on: ubuntu-latest
+    env:
+      CI: "true"
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pytest flake8
+
+      - name: Lint with flake8
+        run: |
+          flake8 . --max-line-length=120 --exclude=migrations,settings.py,manage.py
+
+      - name: Run tests with pytest
+        run: |
+          pytest
+
+  # ─── Джоб 2: Проверка сборки Docker-образов ───
+  build:
+    needs: test-and-lint
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      # Собираем web-образ (проверка, что Dockerfile валиден)
+      - name: Build web image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile
+          push: false
+          tags: habit_tracker-web:latest
+
+      - name: Build worker image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile
+          push: false
+          tags: habit_tracker-worker:latest
+          build-args: |
+            SERVICE=worker
+
+  # ─── Джоб 3: Деплой на сервер ───
+  deploy:
+    needs: [test-and-lint, build]
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/feature' || github.ref == 'refs/heads/main'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Debug show values
+        run: |
+          echo "DEBUG: host = ${{ secrets.SSH_HOST }}"
+          echo "DEBUG: user = ${{ secrets.SSH_USER }}"
+          echo "DEBUG: path = ${{ secrets.DEPLOY_PATH }}"
+
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: 22
+          script: |
+            cd ${{ secrets.DEPLOY_PATH }}
+            git fetch --all
+            git checkout ${{ github.ref_name }}
+            git pull origin ${{ github.ref_name }}
+
+            # Останавливаем контейнеры и поднимаем с пересборкой
+            docker compose down
+            docker compose up -d --build
+
+            docker compose exec -T web python manage.py migrate
+
+            # Чистим неиспользуемые образы, чтобы не забивать диск
+            docker image prune -f
